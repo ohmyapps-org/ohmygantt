@@ -1,75 +1,66 @@
-# React + TypeScript + Vite
+# OhMyGantt
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> Project planning on a Gantt chart. Turn GitHub Projects, manual task lists, or Trello boards into interactive timelines.
 
-Currently, two official plugins are available:
+OhMyGantt is a project-planning tool that renders Gantt timelines from three different data sources: GitHub Projects v2 (via OAuth), hand-created manual projects, and imported Trello boards. It combines an interactive Gantt view with a metrics view (burndown, velocity, status breakdown) and lets you export any timeline as a self-contained HTML file. A small Bun server handles GitHub OAuth and the GraphQL proxy so your access token never reaches the browser.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Features
 
-## React Compiler
+- **GitHub Projects v2 Gantt** — sign in with GitHub OAuth, pick a project from your dashboard, and get bars derived from custom fields (status, iteration, dates, milestones, labels, assignees, progress)
+- **Interactive timeline** — Gantt rows and bars with progress, dependencies, codes and assignees; filter by status, assignee, iteration, milestone or code
+- **Metrics view** — burndown, velocity and status-donut charts per project (Recharts)
+- **Manual projects** — create projects with tasks (todo / in progress / done, start and end dates, dependencies), edit them in a dedicated editor, and share them via generated links
+- **Trello import** — paste a board URL, and cards are mapped to Gantt items (list names become statuses, due dates become the timeline) and stored in SQLite
+- **Export** — download any Gantt as a single self-contained HTML file with no dependencies
+- **Security-first OAuth** — GitHub OAuth flow with httpOnly, SameSite=Strict session cookies, an in-memory session store, and a GraphQL proxy that keeps the token server-side; CORS is locked to the configured app origin
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+## Tech stack
 
-Note: This will impact Vite dev & build performances.
+- React 19 + TypeScript (strict)
+- Vite
+- TailwindCSS v4
+- Radix UI primitives (shadcn-style components)
+- TanStack Query v5 (server state)
+- React Router v7 (routing)
+- Recharts (metrics charts)
+- Motion (animations)
+- Lucide icons
+- Bun runtime server (`Bun.serve`) with `bun:sqlite`
+- OxLint for linting
 
-## Expanding the ESLint configuration
+## Getting started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Requires [Bun](https://bun.sh). Copy `.env.example` to `.env` and fill in your GitHub OAuth app credentials:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+SESSION_SECRET=...        # random, 32+ chars
+PORT=3000
+VITE_APP_URL=http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Then start both the server and the client:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+bun install
+bun dev
 ```
+
+Open [http://localhost:5173](http://localhost:5173). The dev server runs the Bun API on port 3000 and the Vite client on 5173, with `/api/*` proxied to the backend.
+
+## Scripts
+
+| Script                 | Description                              |
+| ---------------------- | ---------------------------------------- |
+| `bun dev`              | Run API server and Vite client together  |
+| `bun run dev:client`   | Vite dev server only                     |
+| `bun run dev:server`   | Bun API server with hot reload           |
+| `bun run build`        | Production build to `dist/`              |
+| `bun run start`        | Serve the production build with Bun      |
+| `bun run typecheck`    | Run `tsc -b`                             |
+| `bun run lint`         | Run OxLint on `src/`                     |
+
+---
+
+Part of the OhMy suite: OhMyForms, OhMyDocs, OhMyMail, OhMyGrid, OhMyCharts, OhMyGantt. A family of small, focused productivity tools.
