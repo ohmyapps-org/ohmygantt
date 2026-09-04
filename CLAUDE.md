@@ -549,7 +549,7 @@ export function useProject(projectId: string) {
 ## Contexto del autor
 
 - **Faku**, 19 años, Montevideo, Uruguay
-- Fundador de Itica SAS y Equipo Eternum
+- Fundador de WeFaber y Equipo Eternum
 - Esta herramienta nació para el proyecto de egreso SGRSI (BT Informática 2026, ITI CETP) pero está diseñada para ser pública y multi-proyecto
 - Estilo de trabajo: propone, Claude analiza tensiones y tradeoffs antes de ejecutar. No se avanza sin confirmación de dirección.
 - Tono técnico directo. Sin endulzar. Sin em dashes.
