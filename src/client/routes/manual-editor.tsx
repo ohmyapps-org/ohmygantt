@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { Plus, Trash2, BarChart2, Share2, Link as LinkIcon, X, ArrowLeft, Check } from 'lucide-react'
 import { getManualProject, updateManualProject, generateShareLink, revokeShareLink } from '@/lib/manual'
-import type { ManualTask, ManualProject } from '@/lib/manual'
+import type { ManualTask, ManualProject, Dependency } from '@/lib/manual'
 import { Button } from '@/components/ui/button'
 import DependencySelect from '@/components/gantt/DependencySelect'
 import { Dialog, DialogTrigger, DialogContent } from '@/components/ui/dialog'
@@ -19,6 +19,7 @@ function newTask(): ManualTask {
     description: '',
     status: 'todo',
     dependencies: [],
+    parentId: null,
     startDate: null,
     endDate: null,
     createdAt: now,
@@ -35,23 +36,29 @@ export default function ManualEditorRoute() {
   const [saving, setSaving] = useState(false)
   const [shareId, setShareId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!projectId) return
-    getManualProject(projectId).then((p) => {
-      setProject(p)
-      setTitle(p.title)
-      setTasks(p.tasks)
-      setShareId(p.shareId)
-    }).catch(() => navigate('/'))
+    getManualProject(projectId)
+      .then((p) => {
+        setProject(p)
+        setTitle(p.title)
+        setTasks(p.tasks)
+        setShareId(p.shareId)
+      })
+      .catch(() => navigate('/'))
   }, [projectId, navigate])
 
   const save = useCallback(async () => {
     if (!project) return
     setSaving(true)
+    setSaveError(null)
     try {
       const updated = await updateManualProject(project.id, { title, tasks })
       setProject(updated)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Save failed')
     } finally {
       setSaving(false)
     }
@@ -68,7 +75,16 @@ export default function ManualEditorRoute() {
   }
 
   function removeTask(id: string) {
-    setTasks((prev) => prev.filter((t) => t.id !== id))
+    // Also remove this task as parent from children
+    setTasks((prev) =>
+      prev
+        .filter((t) => t.id !== id)
+        .map((t) => ({
+          ...t,
+          parentId: t.parentId === id ? null : t.parentId,
+          dependencies: t.dependencies.filter((d) => d.taskId !== id),
+        }))
+    )
   }
 
   function addTask() {
@@ -109,6 +125,9 @@ export default function ManualEditorRoute() {
           </Link>
           <span className="text-[#1e3a5f]">/</span>
           <span className="text-sm text-[#7aa3c8]">Manual Entry</span>
+          {saveError && (
+            <span className="text-xs text-red-400 ml-2">{saveError}</span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" className="gap-1.5 text-xs" onClick={save} disabled={saving}>
@@ -163,7 +182,7 @@ export default function ManualEditorRoute() {
       </header>
 
       <div className="flex-1 overflow-auto px-5 py-6">
-        <div className="mx-auto max-w-5xl">
+        <div className="mx-auto max-w-6xl">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -182,7 +201,8 @@ export default function ManualEditorRoute() {
                   <th className="w-28 px-2 py-2.5 text-left font-medium">Status</th>
                   <th className="w-28 px-2 py-2.5 text-left font-medium">Start date</th>
                   <th className="w-28 px-2 py-2.5 text-left font-medium">End date</th>
-                  <th className="w-32 px-2 py-2.5 text-left font-medium">Dependencies</th>
+                  <th className="w-32 px-2 py-2.5 text-left font-medium">Parent</th>
+                  <th className="w-44 px-2 py-2.5 text-left font-medium">Dependencies</th>
                   <th className="w-10 px-3 py-2.5" />
                 </tr>
               </thead>
@@ -211,7 +231,9 @@ export default function ManualEditorRoute() {
                     <td className="px-2 py-2">
                       <select
                         value={task.status}
-                        onChange={(e) => updateTask(task.id, { status: e.target.value as ManualTask['status'] })}
+                        onChange={(e) =>
+                          updateTask(task.id, { status: e.target.value as ManualTask['status'] })
+                        }
                         className="w-full rounded border border-[#1e3a5f] bg-[#07172e] px-2 py-1.5 text-xs text-[#e8f4fd] outline-none focus:border-[#4988C4] cursor-pointer"
                       >
                         <option value="todo">To do</option>
@@ -236,9 +258,27 @@ export default function ManualEditorRoute() {
                       />
                     </td>
                     <td className="px-2 py-2">
+                      <select
+                        value={task.parentId ?? ''}
+                        onChange={(e) =>
+                          updateTask(task.id, { parentId: e.target.value || null })
+                        }
+                        className="w-full rounded border border-[#1e3a5f] bg-[#07172e] px-2 py-1.5 text-xs text-[#e8f4fd] outline-none focus:border-[#4988C4] cursor-pointer"
+                      >
+                        <option value="">— root —</option>
+                        {tasks
+                          .filter((t) => t.id !== task.id)
+                          .map((t, ti) => (
+                            <option key={t.id} value={t.id} style={{ background: '#0d2040' }}>
+                              #{ti + 1} {t.title || 'untitled'}
+                            </option>
+                          ))}
+                      </select>
+                    </td>
+                    <td className="px-2 py-2">
                       <DependencySelect
                         taskId={task.id}
-                        value={task.dependencies}
+                        value={task.dependencies as Dependency[]}
                         availableDeps={availableDeps}
                         onChange={(deps) => updateTask(task.id, { dependencies: deps })}
                       />

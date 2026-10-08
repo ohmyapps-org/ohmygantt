@@ -3,6 +3,7 @@ import { handleGitHub } from './routes/github'
 import { handleManual } from './routes/manual'
 import { handleShare } from './routes/share'
 import { handleTrello } from './routes/trello'
+import { handleCalendar } from './routes/calendar'
 
 const REQUIRED_ENV = ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'] as const
 for (const key of REQUIRED_ENV) {
@@ -77,6 +78,9 @@ const server = Bun.serve({
 
     const trelloRes = await handleTrello(req)
     if (trelloRes) return addCors(addSecurity(trelloRes), origin)
+
+    const calendarRes = await handleCalendar(req)
+    if (calendarRes) return addCors(addSecurity(calendarRes), origin)
 
     if (IS_PRODUCTION) {
       const url = new URL(req.url)

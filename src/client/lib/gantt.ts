@@ -1,4 +1,7 @@
 import type { ProjectItem, ProjectFieldValue } from './github'
+import type { Dependency } from './manual'
+
+export type { Dependency }
 
 export type GanttItem = {
   id: string
@@ -15,7 +18,8 @@ export type GanttItem = {
   iteration: string | null
   milestone: { title: string; description: string; dueOn: string | null } | null
   description?: string
-  dependencies?: string[]
+  dependencies?: Dependency[]
+  parentId?: string | null
 }
 
 export const PROGRESS: Record<string, number> = {
@@ -29,10 +33,10 @@ export const PROGRESS: Record<string, number> = {
 const SIZE_DAYS: Record<string, number> = { XS: 3, S: 5, M: 10, L: 15, XL: 21 }
 
 export const CODE_COLORS: Record<string, string> = {
-  IS: '#4988C4',
-  UTU: '#64CCC5',
-  FS: '#7B68EE',
-  ASO: '#F4A261',
+  IS:    '#4988C4',
+  UTU:   '#64CCC5',
+  FS:    '#7B68EE',
+  ASO:   '#F4A261',
   OTHER: '#7aa3c8',
 }
 
@@ -85,7 +89,6 @@ export function mapItemsToGantt(items: ProjectItem[]): GanttItem[] {
       const startStr = getFieldValue(fvs, 'Start Date')
       const endStr = getFieldValue(fvs, 'End Date')
       const status = getFieldValue(fvs, 'Status') ?? 'Backlog'
-
       const closedAt = item.content.closedAt ? new Date(item.content.closedAt) : null
 
       let start: Date
@@ -135,7 +138,6 @@ export function getUniqueStatuses(items: GanttItem[]): string[] {
   return [...new Set(items.map((i) => i.status))].sort()
 }
 
-// Items are already sorted by start date, so iterations come out in chronological order.
 export function getUniqueIterations(items: GanttItem[]): string[] {
   const seen = new Set<string>()
   const result: string[] = []
@@ -149,23 +151,36 @@ export function getUniqueIterations(items: GanttItem[]): string[] {
 }
 
 export function getUniqueMilestones(items: GanttItem[]): string[] {
-  return [...new Set(items.map((i) => i.milestone?.title).filter(Boolean) as string[])].sort()
+  return [
+    ...new Set(
+      items.map((i) => i.milestone?.title).filter((v): v is string => Boolean(v))
+    ),
+  ].sort()
 }
 
 export const MANUAL_PROGRESS: Record<string, number> = {
-  todo: 0,
+  todo:        0,
   in_progress: 0.55,
-  done: 1,
+  done:        1,
 }
 
 export const MANUAL_STATUS_LABEL: Record<string, string> = {
-  todo: 'To do',
+  todo:        'To do',
   in_progress: 'In progress',
-  done: 'Done',
+  done:        'Done',
 }
 
 export function mapManualTaskToGantt(
-  task: { id: string; title: string; description?: string; status: string; startDate: string | null; endDate: string | null; dependencies?: string[] },
+  task: {
+    id: string
+    title: string
+    description?: string
+    status: string
+    startDate: string | null
+    endDate: string | null
+    dependencies?: Dependency[]
+    parentId?: string | null
+  },
   index: number
 ): GanttItem {
   const now = new Date()
@@ -188,12 +203,43 @@ export function mapManualTaskToGantt(
     milestone: null,
     description: task.description,
     dependencies: task.dependencies,
+    parentId: task.parentId ?? null,
   }
+}
+
+/**
+ * Compute the progress of a parent task from its direct children.
+ * Returns the original progress if the task has no children in the list.
+ */
+export function computeTreeProgress(
+  items: GanttItem[]
+): GanttItem[] {
+  const childrenMap = new Map<string, GanttItem[]>()
+  for (const item of items) {
+    const pid = item.parentId ?? null
+    if (pid !== null) {
+      if (!childrenMap.has(pid)) childrenMap.set(pid, [])
+      childrenMap.get(pid)!.push(item)
+    }
+  }
+
+  return items.map((item) => {
+    const children = childrenMap.get(item.id)
+    if (!children || children.length === 0) return item
+    const avgProgress = children.reduce((s, c) => s + c.progress, 0) / children.length
+    return { ...item, progress: avgProgress }
+  })
 }
 
 export function filterItems(
   items: GanttItem[],
-  filters: { codes: string[]; statuses: string[]; assignees: string[]; iterations: string[]; milestones: string[] }
+  filters: {
+    codes: string[]
+    statuses: string[]
+    assignees: string[]
+    iterations: string[]
+    milestones: string[]
+  }
 ): GanttItem[] {
   return items.filter((item) => {
     if (filters.codes.length > 0 && !filters.codes.includes(item.code)) return false

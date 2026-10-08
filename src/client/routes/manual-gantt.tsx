@@ -1,11 +1,12 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Pencil } from 'lucide-react'
-import { getManualProject } from '@/lib/manual'
-import type { ManualProject } from '@/lib/manual'
-import { mapManualTaskToGantt, filterItems, getUniqueStatuses } from '@/lib/gantt'
+import { getManualProject, updateProjectCalendar } from '@/lib/manual'
+import type { ManualProject, CalendarConfig } from '@/lib/manual'
+import { mapManualTaskToGantt, filterItems, getUniqueStatuses, computeTreeProgress } from '@/lib/gantt'
 import type { ItemFilters } from '@/hooks/useItems'
 import GanttChart from '@/components/gantt/GanttChart'
+import ProjectSettings from '@/components/gantt/ProjectSettings'
 import { Button } from '@/components/ui/button'
 
 export default function ManualGanttRoute() {
@@ -13,7 +14,13 @@ export default function ManualGanttRoute() {
   const navigate = useNavigate()
   const [project, setProject] = useState<ManualProject | null>(null)
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState<ItemFilters>({ codes: [], statuses: [], assignees: [], iterations: [], milestones: [] })
+  const [filters, setFilters] = useState<ItemFilters>({
+    codes: [],
+    statuses: [],
+    assignees: [],
+    iterations: [],
+    milestones: [],
+  })
 
   useEffect(() => {
     getManualProject(projectId)
@@ -22,13 +29,23 @@ export default function ManualGanttRoute() {
       .finally(() => setLoading(false))
   }, [projectId, navigate])
 
+  const handleCalendarChange = useCallback(
+    async (patch: Partial<CalendarConfig>) => {
+      if (!project) return
+      const updated = await updateProjectCalendar(project.id, patch)
+      setProject(updated)
+    },
+    [project]
+  )
+
+  // Map all tasks to GanttItems (including parentId)
   const allItems = useMemo(() => {
     if (!project) return []
-    return project.tasks.map((t, i) => mapManualTaskToGantt(t, i))
+    const mapped = project.tasks.map((t, i) => mapManualTaskToGantt(t, i))
+    return computeTreeProgress(mapped)
   }, [project])
 
   const items = useMemo(() => filterItems(allItems, filters), [allItems, filters])
-
   const availableStatuses = useMemo(() => getUniqueStatuses(allItems), [allItems])
 
   if (loading) {
@@ -43,7 +60,12 @@ export default function ManualGanttRoute() {
     <div className="flex h-screen flex-col bg-[#07172e] text-[#e8f4fd]">
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#1e3a5f] bg-[#07172e] px-5">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="h-8 w-8 text-[#7aa3c8]">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/')}
+            className="h-8 w-8 text-[#7aa3c8]"
+          >
             <ArrowLeft size={16} />
           </Button>
           <Link to="/" className="flex items-center gap-2 text-[#e8f4fd] hover:text-white">
@@ -51,12 +73,28 @@ export default function ManualGanttRoute() {
           </Link>
           <span className="text-[#1e3a5f]">/</span>
           <div>
-            <h1 className="text-sm font-semibold text-[#e8f4fd]">{project?.title ?? 'Manual Project'}</h1>
-            <p className="text-xs text-[#7aa3c8]">{items.length} of {allItems.length} items</p>
+            <h1 className="text-sm font-semibold text-[#e8f4fd]">
+              {project?.title ?? 'Manual Project'}
+            </h1>
+            <p className="text-xs text-[#7aa3c8]">
+              {items.length} of {allItems.length} items
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="gap-1.5 text-[#7aa3c8]" onClick={() => navigate(`/manual/${projectId}/edit`)}>
+          {project && (
+            <ProjectSettings
+              projectId={project.id}
+              calendar={project.calendar}
+              onCalendarChange={handleCalendarChange}
+            />
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-[#7aa3c8]"
+            onClick={() => navigate(`/manual/${projectId}/edit`)}
+          >
             <Pencil size={14} />
             Edit tasks
           </Button>
@@ -73,7 +111,9 @@ export default function ManualGanttRoute() {
                 onClick={() =>
                   setFilters((f) => ({
                     ...f,
-                    statuses: f.statuses.includes(s) ? f.statuses.filter((x) => x !== s) : [...f.statuses, s],
+                    statuses: f.statuses.includes(s)
+                      ? f.statuses.filter((x) => x !== s)
+                      : [...f.statuses, s],
                   }))
                 }
                 className={`rounded-sm px-2 py-0.5 text-xs font-medium transition-colors ${
@@ -102,7 +142,7 @@ export default function ManualGanttRoute() {
             No tasks to display.
           </div>
         ) : (
-          <GanttChart items={items} />
+          <GanttChart items={items} calendar={project?.calendar} />
         )}
       </div>
     </div>
